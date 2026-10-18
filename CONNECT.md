@@ -12,7 +12,7 @@ Connection details (the same for all 23 projects):
 | Setting | Value |
 |---|---|
 | Host | `localhost` |
-| Port | `3306` |
+| Port | `3307` |
 | User | `de_user` |
 | Password | `de_pass` |
 | Database | `gold` (Power BI) — leave empty in DBeaver to see all three |
@@ -45,10 +45,10 @@ Connection details (the same for all 23 projects):
 
 ```bash
 docker compose up -d      # in the project folder
-docker ps                 # you should see <project>_mysql with 0.0.0.0:3306->3306/tcp
+docker ps                 # you should see <project>_mysql with 0.0.0.0:3307->3306/tcp
 ```
 
-**A) Docker runs on your own PC** → nothing else to do, use `localhost:3306`.
+**A) Docker runs on your own PC** → nothing else to do, use `localhost:3307`.
 
 **B) The project runs in GitHub Codespaces** → MySQL is in the cloud, not on your PC.
 Power BI and DBeaver run on your PC, so you must open a "tunnel" first. Choose one:
@@ -56,15 +56,30 @@ Power BI and DBeaver run on your PC, so you must open a "tunnel" first. Choose o
 - **GitHub CLI** (on your own PC, in PowerShell or a terminal):
   ```bash
   gh auth login                              # once
-  gh codespace ports forward 3306:3306       # pick your codespace, keep this window open
+  gh codespace ports forward 3307:3307       # pick your codespace, keep this window open
   ```
 - **VS Code desktop app:** open the codespace in VS Code on your PC (not in the browser) →
-  **Ports** tab → **Forward a Port** → `3306`.
+  **Ports** tab → **Forward a Port** → `3307`.
 
-Now `localhost:3306` on your PC goes to the MySQL in the codespace. Keep the tunnel open while you work.
+Now `localhost:3307` on your PC goes to the MySQL in the codespace. Keep the tunnel open while you work.
 
-> **Port 3306 already in use?** (for example, MySQL is also installed on your PC)
-> Change `"3306:3306"` to `"3307:3306"` in `docker-compose.yml`, run `docker compose up -d` again, and use port `3307` everywhere.
+### Why port 3307?
+
+We use port **3307 on your PC** so the Docker MySQL never clashes with a MySQL that is already installed on your
+computer (that one normally uses 3306). The line in `docker-compose.yml` means *"your PC port : port inside the container"*:
+
+```yaml
+    ports:
+      - "3307:3306"          # your PC: 3307  →  MySQL inside the container: 3306
+```
+
+After changing this line, restart the container: `docker compose down` → `docker compose up -d`
+(your data is kept; only `docker compose down -v` deletes it).
+
+> ⚠️ **The Python code must use the same port.** The notebooks, the Streamlit app and the Scrapy settings still connect to
+> `localhost:3306`. When you switch to 3307, change `localhost:3306` → `localhost:3307` in:
+> `notebooks/*.ipynb` (the `DB_URL = ...` line), `app/app.py` (`create_engine(...)`) and, for projects 21–23,
+> `scraper/wiki_scraper/settings.py` (`DB_URL`). VS Code: **Ctrl + Shift + H** (search and replace in all files) does it in one step.
 
 ---
 
@@ -73,7 +88,7 @@ Now `localhost:3306` on your PC goes to the MySQL in the codespace. Keep the tun
 1. Download and install **DBeaver Community**: https://dbeaver.io/files/dbeaver-ce-latest-windows-x86_64.exe
 2. **Database → New Database Connection → MySQL → Next**
 3. Fill in:
-   - Server Host: `localhost` · Port: `3306`
+   - Server Host: `localhost` · Port: `3307`
    - Database: *(leave empty → you see bronze, silver and gold)*
    - Username: `de_user` · Password: `de_pass` · tick **Save password**
 4. Open the **Driver properties** tab and set:
@@ -120,7 +135,7 @@ Now `localhost:3306` on your PC goes to the MySQL in the codespace. Keep the tun
 ### 2.2 Connect
 
 1. **Home → Get data → More… → Database → MySQL database → Connect**
-2. Server: `localhost:3306` · Database: `gold` → **OK**
+2. Server: `localhost:3307` · Database: `gold` → **OK**  (host and port with a colon, no space)
 3. Choose the **Database** tab on the left (not Windows) → User `de_user` · Password `de_pass` → **Connect**
 4. If Power BI asks about an encrypted connection, click **OK** (no SSL is fine on your own PC).
 5. In the **Navigator** tick the `dim_…`, `fact_…`, `vw_…`, `analysis_…` and `ml_…` tables you need
@@ -152,7 +167,9 @@ Rerun the notebooks → in Power BI click **Home → Refresh**. The connection s
 | *Access denied for user* | Use `de_user` / `de_pass`. In Power BI choose the **Database** tab, not Windows. |
 | *Public Key Retrieval is not allowed* (DBeaver) | Driver properties: `allowPublicKeyRetrieval=true`, `useSSL=false` |
 | Power BI: *requires additional components* | Uninstall all Connector/NET versions → install **8.0.28** (link above) → restart. Still not found? Try 8.0.33. |
-| Port 3306 is used by another MySQL | Map `"3307:3306"` in `docker-compose.yml` and use port 3307 |
+| *Port is already allocated* when you start Docker | Another program uses 3307 → pick another port, e.g. `"3308:3306"`, and use 3308 everywhere |
+| Notebooks give *Can't connect to MySQL server on 'localhost'* | The notebook still uses 3306 → change `DB_URL` to `localhost:3307` (see "Why port 3307?") |
+| DBeaver / Power BI connect to the **wrong** database | You typed 3306 and reached the MySQL installed on your PC → use **3307** |
 | Tables are empty | Run the notebooks 01 → 05 first; in DBeaver press F5 |
 | Numbers are text in Power BI | Power Query → change the column type to Decimal / Whole number |
-| Wrong project's data | All projects use port 3306. Run `docker compose down` in one project before `up -d` in the next. |
+| Wrong project's data | All projects use the same port (3307). Run `docker compose down` in one project before `up -d` in the next. |
